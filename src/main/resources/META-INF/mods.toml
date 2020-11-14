@@ -1,0 +1,27 @@
+modLoader="kotlinforforge"
+loaderVersion="[1,)"
+license="MIT"
+
+[[mods]]
+modId="${modid}"
+version="${version}"
+displayName="${modname}"
+# logoFile="icon.png"
+authors="Arcanox"
+description='''
+A collection of common code and utilities used by Arcanox's mods
+'''
+
+[[dependencies.arcanoxlib]]
+    modId="forge"
+    mandatory=true
+    versionRange="[34.1.25,)"
+    ordering="NONE"
+    side="BOTH"
+
+[[dependencies.arcanoxlib]]
+    modId="minecraft"
+    mandatory=true
+    versionRange="[1.16.3,)"
+    ordering="NONE"
+    side="BOTH"
