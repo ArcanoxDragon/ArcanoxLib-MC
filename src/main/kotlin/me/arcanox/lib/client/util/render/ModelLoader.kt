@@ -1,7 +1,6 @@
 package me.arcanox.lib.client.util.render
 
 import me.arcanox.lib.util.LazyCache
-import me.arcanox.lib.util.Logger
 import me.arcanox.lib.util.lazyCache
 import me.arcanox.lib.util.reflect.ReflectionHelper
 import net.minecraft.client.Minecraft
@@ -11,11 +10,15 @@ import net.minecraft.resources.IFutureReloadListener
 import net.minecraft.resources.IReloadableResourceManager
 import net.minecraft.resources.IResourceManager
 import net.minecraft.util.ResourceLocation
+import org.apache.logging.log4j.LogManager
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.Executor
 import kotlin.reflect.KClass
 import kotlin.reflect.KMutableProperty1
-import kotlin.reflect.full.*
+import kotlin.reflect.full.companionObjectInstance
+import kotlin.reflect.full.declaredMemberProperties
+import kotlin.reflect.full.findAnnotation
+import kotlin.reflect.full.hasAnnotation
 import kotlin.reflect.jvm.isAccessible
 import net.minecraftforge.client.model.ModelLoader as ForgeModelLoader
 
@@ -37,27 +40,30 @@ object ModelLoader {
 		 */
 		override fun reload(stage: IFutureReloadListener.IStage, resourceManager: IResourceManager, preparationsProfiler: IProfiler,
 		                    reloadProfiler: IProfiler, backgroundExecutor: Executor, gameExecutor: Executor): CompletableFuture<Void> = CompletableFuture.runAsync {
+			val logger = LogManager.getLogger();
 			val className = this.consumerClass.simpleName;
 			
-			Logger.debug("Beginning reload for ModelConsumer \"$className\"...");
+			logger.debug("Beginning reload for ModelConsumer \"$className\"...");
 			this.registeredModels.forEach {
 				// Reload this model by invalidating and then poking the cache
 				it.invalidate();
 				it.poke();
 			}
-			Logger.debug("Reload is complete for ModelConsumer \"$className\".");
+			logger.debug("Reload is complete for ModelConsumer \"$className\".");
 		}.thenCompose(stage::markCompleteAwaitingOthers)
 	}
 	
 	private val modelConsumers = mutableListOf<RegisteredModelConsumer>()
 	
 	fun registerModelsInPackage(modId: String, packagePrefix: String) {
-		Logger.info("Beginning model registration for mod \"$modId\"...");
+		val logger = LogManager.getLogger();
+		
+		logger.info("Beginning model registration for mod \"$modId\" in package \"$packagePrefix\"...");
 		
 		val reloadableResourceManager = Minecraft.getInstance().resourceManager as? IReloadableResourceManager;
 		
 		// Find all IModelConsumers that reside in the provided packagePrefix
-		Logger.info("Scanning \"$packagePrefix\" for model consumers...")
+		logger.info("Scanning \"$packagePrefix\" for model consumers...")
 		ReflectionHelper.forClassesWithAnnotation(ConsumesModels::class, Any::class, packagePrefix) { modelConsumerClass, _ ->
 			val className = modelConsumerClass.simpleName;
 			
@@ -68,7 +74,7 @@ object ModelLoader {
 				val companionObject = modelConsumerClass.companionObjectInstance;
 				
 				if (companionObject == null) {
-					Logger.warn("Class \"$className\" has a ConsumesModels annotation, but it is not an object and does not have a companion object");
+					logger.warn("Class \"$className\" has a ConsumesModels annotation, but it is not an object and does not have a companion object");
 					return@forClassesWithAnnotation;
 				}
 				
@@ -83,7 +89,7 @@ object ModelLoader {
 				.filter { it.hasAnnotation<ModelLocation>() }
 				.forEach {
 					if (it !is KMutableProperty1) {
-						Logger.warn("Model property \"${it.name}\" on class \"$className\" is not mutable; model will not be registered");
+						logger.warn("Model property \"${it.name}\" on class \"$className\" is not mutable; model will not be registered");
 						return@forEach;
 					}
 					
@@ -99,20 +105,20 @@ object ModelLoader {
 					try {
 						it.set(modelConsumer, modelCache);
 					} catch (ex: Exception) {
-						Logger.error("Model property \"${it.name}\" on class \"$className\" could not be set during model registration");
+						logger.error("Model property \"${it.name}\" on class \"$className\" could not be set during model registration");
 						ex.printStackTrace();
 						return@forEach;
 					}
 					
 					// Register the model
-					Logger.info("Registering model \"${modelLocationAnnotation.resourceLocation}\" for class \"$className\"...");
+					logger.info("Registering model \"${modelLocationAnnotation.resourceLocation}\" for class \"$className\"...");
 					ForgeModelLoader.addSpecialModel(resourceLocation);
 					
 					// Record this model for later reloading
 					consumerInfo.registeredModels += modelCache;
 				};
 			
-			Logger.info("Registered ${consumerInfo.registeredModels.size} models for class \"$className\"");
+			logger.info("Registered ${consumerInfo.registeredModels.size} models for class \"$className\"");
 			
 			modelConsumers += consumerInfo;
 			
@@ -123,6 +129,6 @@ object ModelLoader {
 		val totalModels = modelConsumers.sumBy { it.registeredModels.size };
 		val totalConsumers = modelConsumers.size;
 		
-		Logger.info("Model registration complete. Registered $totalModels models for $totalConsumers consumers.");
+		logger.info("Model registration complete. Registered $totalModels models for $totalConsumers consumers.");
 	}
 }

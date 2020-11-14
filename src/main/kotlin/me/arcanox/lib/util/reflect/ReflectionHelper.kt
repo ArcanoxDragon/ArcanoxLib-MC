@@ -33,6 +33,7 @@ object ReflectionHelper {
 				scanData.annotations
 					.filter { it.memberName.startsWith(packageFilter) }
 					.filter { it.annotationType == annotationType }
+					.distinctBy { it.memberName }
 					.map { annotationData ->
 						val className = annotationData.memberName;
 						val typed: Class<out C>;
