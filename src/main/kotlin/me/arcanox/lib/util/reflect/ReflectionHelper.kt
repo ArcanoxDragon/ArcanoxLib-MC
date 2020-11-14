@@ -23,7 +23,7 @@ object ReflectionHelper {
 	 *
 	 * Returns a list of pairs, the first item of each pair being the class itself and the second item being the annotation.
 	 */
-	fun <C, A : Annotation> getClassesWithAnnotation(annotationClass: Class<A>, supertype: Class<C>/*, packageFilter: String*/): List<Pair<Class<out C>, A>> {
+	fun <C, A : Annotation> getClassesWithAnnotation(annotationClass: Class<A>, supertype: Class<C>, packageFilter: String): List<Pair<Class<out C>, A>> {
 		val annotationType = Type.getType(annotationClass);
 		val allScanData = ModList.get().allScanData;
 		
@@ -31,6 +31,7 @@ object ReflectionHelper {
 		return allScanData
 			.flatMap { scanData ->
 				scanData.annotations
+					.filter { it.memberName.startsWith(packageFilter) }
 					.filter { it.annotationType == annotationType }
 					.map { annotationData ->
 						val className = annotationData.memberName;
@@ -66,9 +67,8 @@ object ReflectionHelper {
 	 *
 	 * Returns a list of pairs, the first item of each pair being the class itself and the second item being the annotation.
 	 */
-	fun <C : Any, A : Annotation> getClassesWithAnnotation(annotationClass: KClass<A>,
-	                                                       supertype: KClass<out C>): List<Pair<KClass<out C>, A>> =
-		getClassesWithAnnotation(annotationClass.java, supertype.java).map { (c, a) -> Pair(c.kotlin, a) }
+	fun <C : Any, A : Annotation> getClassesWithAnnotation(annotationClass: KClass<A>, supertype: KClass<out C>, packageFilter: String): List<Pair<KClass<out C>, A>> =
+		getClassesWithAnnotation(annotationClass.java, supertype.java, packageFilter).map { (c, a) -> Pair(c.kotlin, a) }
 	
 	/**
 	 * Searches all loaded classes for classes which are annotated with the specified annotation, and which inherit from
@@ -76,8 +76,8 @@ object ReflectionHelper {
 	 *
 	 * The provided action will be called for each class that is found matching the provided criteria.
 	 */
-	fun <C : Any, A : Annotation> forClassesWithAnnotation(annotationClass: Class<A>, supertype: Class<C>, action: (Class<out C>, A) -> Unit) =
-		getClassesWithAnnotation(annotationClass, supertype).forEach { (clazz, annotation) -> action(clazz, annotation) }
+	fun <C : Any, A : Annotation> forClassesWithAnnotation(annotationClass: Class<A>, supertype: Class<C>, packageFilter: String, action: (Class<out C>, A) -> Unit) =
+		getClassesWithAnnotation(annotationClass, supertype, packageFilter).forEach { (clazz, annotation) -> action(clazz, annotation) }
 	
 	/**
 	 * Searches all loaded Kotlin classes for classes which are annotated with the specified annotation, and which inherit
@@ -85,8 +85,8 @@ object ReflectionHelper {
 	 *
 	 * The provided action will be called for each class that is found matching the provided criteria.
 	 */
-	fun <C : Any, A : Annotation> forClassesWithAnnotation(annotationClass: KClass<A>, supertype: KClass<C>, action: (KClass<out C>, A) -> Unit) =
-		getClassesWithAnnotation(annotationClass, supertype).forEach { (clazz, annotation) -> action(clazz, annotation) }
+	fun <C : Any, A : Annotation> forClassesWithAnnotation(annotationClass: KClass<A>, supertype: KClass<C>, packageFilter: String, action: (KClass<out C>, A) -> Unit) =
+		getClassesWithAnnotation(annotationClass, supertype, packageFilter).forEach { (clazz, annotation) -> action(clazz, annotation) }
 	
 	/**
 	 * Searches all loaded classes for classes which are annotated with the specified annotation, and which inherit from
@@ -95,10 +95,9 @@ object ReflectionHelper {
 	 *
 	 * Returns a list of pairs, the first item of each pair being the instance itself and the second item being the annotation.
 	 */
-	fun <C, A : Annotation> getInstancesWithAnnotation(annotationClass: Class<A>,
-	                                                   supertype: Class<C>,
+	fun <C, A : Annotation> getInstancesWithAnnotation(annotationClass: Class<A>, supertype: Class<C>, packageFilter: String,
 	                                                   new: (Class<out C>) -> C = { it.getDeclaredConstructor().newInstance() }): List<Pair<C, A>> =
-		getClassesWithAnnotation(annotationClass, supertype).map { (it, annotation) ->
+		getClassesWithAnnotation(annotationClass, supertype, packageFilter).map { (it, annotation) ->
 			try {
 				val instance = new(it);
 				
@@ -119,10 +118,9 @@ object ReflectionHelper {
 	 *
 	 * Returns a list of pairs, the first item of each pair being the instance itself and the second item being the annotation.
 	 */
-	fun <C : Any, A : Annotation> getInstancesWithAnnotation(annotationClass: KClass<A>,
-	                                                         supertype: KClass<C>,
+	fun <C : Any, A : Annotation> getInstancesWithAnnotation(annotationClass: KClass<A>, supertype: KClass<C>, packageFilter: String,
 	                                                         new: (KClass<out C>) -> C = { it.objectInstance ?: it.createInstance() }): List<Pair<C, A>> =
-		getInstancesWithAnnotation(annotationClass.java, supertype.java) { jc -> new(jc.kotlin) }
+		getInstancesWithAnnotation(annotationClass.java, supertype.java, packageFilter) { jc -> new(jc.kotlin) }
 	
 	/**
 	 * Searches all loaded classes for classes which are annotated with the specified annotation, and which inherit from
@@ -131,10 +129,10 @@ object ReflectionHelper {
 	 *
 	 * The provided action will be called for each instance that can be obtained matching the provided criteria.
 	 */
-	fun <C : Any, A : Annotation> forInstancesWithAnnotation(annotationClass: Class<A>, supertype: Class<C>,
+	fun <C : Any, A : Annotation> forInstancesWithAnnotation(annotationClass: Class<A>, supertype: Class<C>, packageFilter: String,
 	                                                         new: (Class<out C>) -> C = { it.getDeclaredConstructor().newInstance() },
 	                                                         action: (C, A) -> Unit) =
-		getInstancesWithAnnotation(annotationClass, supertype, new).forEach { (instance, annotation) -> action(instance, annotation) }
+		getInstancesWithAnnotation(annotationClass, supertype, packageFilter, new).forEach { (instance, annotation) -> action(instance, annotation) }
 	
 	/**
 	 * Searches all loaded Kotlin classes for classes which are annotated with the specified annotation, and which inherit
@@ -144,8 +142,8 @@ object ReflectionHelper {
 	 *
 	 * The provided action will be called for each instance that can be obtained matching the provided criteria.
 	 */
-	fun <C : Any, A : Annotation> forInstancesWithAnnotation(annotationClass: KClass<A>, supertype: KClass<C>,
+	fun <C : Any, A : Annotation> forInstancesWithAnnotation(annotationClass: KClass<A>, supertype: KClass<C>, packageFilter: String,
 	                                                         new: (KClass<out C>) -> C = { it.objectInstance ?: it.createInstance() },
 	                                                         action: (C, A) -> Unit) =
-		getInstancesWithAnnotation(annotationClass, supertype, new).forEach { (instance, annotation) -> action(instance, annotation) }
+		getInstancesWithAnnotation(annotationClass, supertype, packageFilter, new).forEach { (instance, annotation) -> action(instance, annotation) }
 }

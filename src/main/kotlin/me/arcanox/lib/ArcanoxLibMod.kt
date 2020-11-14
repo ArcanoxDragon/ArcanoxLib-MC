@@ -15,6 +15,7 @@ import thedarkcolour.kotlinforforge.forge.MOD_CONTEXT
 object ArcanoxLibMod {
 	const val Name = "ArcanoxLib"
 	const val ModID = "arcanoxlib"
+	const val PackagePrefix = "me.arcanox.lib"
 	
 	private val commonInitHandlers = emptyList<IInitHandler>().toMutableList();
 	private val clientInitHandlers = emptyList<IClientInitHandler>().toMutableList();
@@ -29,7 +30,7 @@ object ArcanoxLibMod {
 		
 		// Find all IInitHandler classes and allow them to initialize
 		this.commonInitHandlers += ReflectionHelper
-			.getInstancesWithAnnotation(InitHandler::class, IInitHandler::class)
+			.getInstancesWithAnnotation(InitHandler::class, IInitHandler::class, ArcanoxLibMod.PackagePrefix)
 			.sortedBy { it.second.priority }
 			.map { it.first };
 		this.commonInitHandlers.forEach { it.onInit(event) };
@@ -42,7 +43,7 @@ object ArcanoxLibMod {
 		
 		// Find all IClientInitHandler classes and allow them to initialize
 		this.clientInitHandlers += ReflectionHelper
-			.getInstancesWithAnnotation(ClientInitHandler::class, IClientInitHandler::class)
+			.getInstancesWithAnnotation(ClientInitHandler::class, IClientInitHandler::class, ArcanoxLibMod.PackagePrefix)
 			.sortedBy { it.second.priority }
 			.map { it.first };
 		this.clientInitHandlers.forEach { it.onClientInit(event) };
