@@ -12,7 +12,6 @@ buildscript {
 }
 
 plugins {
-    id "com.github.johnrengelman.shadow" version "4.0.4"
     id "com.wynprice.cursemaven" version "2.1.1"
 }
 
@@ -33,28 +32,26 @@ archivesBaseName = "${mod_id}"
 
 sourceCompatibility = targetCompatibility = compileJava.sourceCompatibility = compileJava.targetCompatibility = '1.8'
 
+tasks.build.dependsOn kotlinSourcesJar
+
 minecraft {
     // MCP Mappings
     mappings channel: 'snapshot', version: "${mcp_mappings}"
 
     runs {
-        client = {
-            // recommended logging data for a userdev environment
+        client {
             properties 'forge.logging.markers': 'SCAN,REGISTRIES,REGISTRYDUMP'
-            // recommended logging level for the console
             properties 'forge.logging.console.level': 'debug'
             workingDirectory project.file('run').canonicalPath
             source sourceSets.main
         }
-        server = {
-            // recommended logging data for a userdev environment
+        server {
             properties 'forge.logging.markers': 'SCAN,REGISTRIES,REGISTRYDUMP'
-            // recommended logging level for the console
             properties 'forge.logging.console.level': 'debug'
             workingDirectory project.file('run').canonicalPath
             source sourceSets.main
         }
-        data = {
+        data {
             workingDirectory project.file('run').canonicalPath
             property 'forge.logging.markers', 'SCAN,REGISTRIES,REGISTRYDUMP'
             property 'forge.logging.console.level', 'debug'
@@ -74,19 +71,16 @@ dependencies {
 }
 
 compileKotlin {
-    // Needed if you use Forge.kt
-    // and Kotlin 1.4 language features
     kotlinOptions {
         jvmTarget = '1.8'
         languageVersion = '1.4'
         apiVersion = '1.4'
         freeCompilerArgs = ["-Xopt-in=kotlin.ExperimentalStdlibApi"]
     }
+}
 
-    // Required to run in dev environment
-    copy {
-        from "$buildDir/classes/kotlin/main" into "$buildDir/classes/java/main"
-    }
+kotlinSourcesJar {
+    from(sourceSets.main.kotlin.srcDirs)
 }
 
 processResources {
@@ -121,18 +115,6 @@ jar {
 }
 
 jar.finalizedBy('reobfJar')
-
-shadowJar {
-    classifier ""
-
-    dependencies {
-        include(dependency('org.jetbrains.kotlin:kotlin-stdlib:.*'))
-    }
-
-    relocate 'kotlin', 'me.arcanox.lib.kotlin'
-
-    minimize()
-}
 
 publishing {
     publications {
