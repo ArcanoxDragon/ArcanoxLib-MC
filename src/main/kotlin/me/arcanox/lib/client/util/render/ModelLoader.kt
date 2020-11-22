@@ -14,23 +14,39 @@ import org.apache.logging.log4j.LogManager
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.Executor
 import kotlin.reflect.KClass
-import kotlin.reflect.KMutableProperty1
+import kotlin.reflect.KProperty1
 import kotlin.reflect.full.companionObjectInstance
 import kotlin.reflect.full.declaredMemberProperties
-import kotlin.reflect.full.findAnnotation
-import kotlin.reflect.full.hasAnnotation
-import kotlin.reflect.jvm.isAccessible
 import net.minecraftforge.client.model.ModelLoader as ForgeModelLoader
+import net.minecraft.util.Unit as MUnit
 
 @Target(AnnotationTarget.CLASS)
 annotation class ConsumesModels;
 
-@Target(AnnotationTarget.PROPERTY)
-annotation class ModelLocation(val resourceLocation: String);
+class LazyModel internal constructor(val modelPath: String) {
+	private var modelCache: LazyCache<IBakedModel>? = null
+	
+	fun get(): IBakedModel = this.modelCache?.value ?: throwUninitialized()
+	
+	fun reload() {
+		val modelCache = this.modelCache ?: throwUninitialized();
+		
+		modelCache.invalidate();
+		modelCache.poke();
+	}
+	
+	internal fun initialize(cache: LazyCache<IBakedModel>) {
+		this.modelCache = cache
+	}
+	
+	private fun throwUninitialized(): Nothing = throw UnsupportedOperationException("LazyModel accessed before it was initialized")
+}
+
+fun lazyModel(modelPath: String) = LazyModel(modelPath)
 
 object ModelLoader {
 	private class RegisteredModelConsumer(val consumerClass: KClass<*>) : IFutureReloadListener {
-		val registeredModels = mutableListOf<LazyCache<IBakedModel>>();
+		val registeredModels = mutableListOf<LazyModel>();
 		
 		/**
 		 * Reloads all of the models that were registered to this RegisteredModelConsumer at mod-load time.
@@ -39,18 +55,15 @@ object ModelLoader {
 		 * that it is reloaded by Minecraft.
 		 */
 		override fun reload(stage: IFutureReloadListener.IStage, resourceManager: IResourceManager, preparationsProfiler: IProfiler,
-		                    reloadProfiler: IProfiler, backgroundExecutor: Executor, gameExecutor: Executor): CompletableFuture<Void> = CompletableFuture.runAsync {
-			val logger = LogManager.getLogger();
-			val className = this.consumerClass.simpleName;
-			
-			logger.debug("Beginning reload for ModelConsumer \"$className\"...");
-			this.registeredModels.forEach {
-				// Reload this model by invalidating and then poking the cache
-				it.invalidate();
-				it.poke();
+		                    reloadProfiler: IProfiler, backgroundExecutor: Executor, gameExecutor: Executor): CompletableFuture<Void> =
+			stage.markCompleteAwaitingOthers(MUnit.INSTANCE).thenRun {
+				val logger = LogManager.getLogger();
+				val className = this.consumerClass.simpleName;
+				
+				logger.debug("Beginning reload for ModelConsumer \"$className\"...");
+				this.registeredModels.forEach { it.reload() };
+				logger.debug("Reload is complete for ModelConsumer \"$className\".");
 			}
-			logger.debug("Reload is complete for ModelConsumer \"$className\".");
-		}.thenCompose(stage::markCompleteAwaitingOthers)
 	}
 	
 	private val modelConsumers = mutableListOf<RegisteredModelConsumer>()
@@ -84,38 +97,27 @@ object ModelLoader {
 			val consumerInfo = RegisteredModelConsumer(modelConsumerClass);
 			
 			// Find all declared properties on the IModelConsumer's class that are of type LazyCache<*> and that have a ModelLocation annotation
-			modelConsumer.javaClass.kotlin.declaredMemberProperties
-				.filter { it.returnType.classifier == LazyCache::class }
-				.filter { it.hasAnnotation<ModelLocation>() }
+			modelConsumer::class.declaredMemberProperties
+				.filter { it.returnType.classifier == LazyModel::class }
 				.forEach {
-					if (it !is KMutableProperty1) {
-						logger.warn("Model property \"${it.name}\" on class \"$className\" is not mutable; model will not be registered");
+					@Suppress("UNCHECKED_CAST")
+					val property = it as? KProperty1<Any, LazyModel> ?: run {
+						logger.warn("LazyModel property \"${it.name}\" on class \"$className\" could not be accessed; model will not be registered");
 						return@forEach;
-					}
-					
-					val modelLocationAnnotation = it.findAnnotation<ModelLocation>() ?: return@forEach;
-					val resourceLocation = ResourceLocation(modId, modelLocationAnnotation.resourceLocation);
+					};
+					val lazyModel = property.get(modelConsumer);
+					val resourceLocation = ResourceLocation(modId, lazyModel.modelPath);
 					val modelCache = lazyCache { Minecraft.getInstance().modelManager.getModel(resourceLocation) };
 					
-					// Cast "it" down so we can actually set it
-					@Suppress("UNCHECKED_CAST")
-					it as KMutableProperty1<Any, LazyCache<IBakedModel>>;
-					it.setter.isAccessible = true;
-					
-					try {
-						it.set(modelConsumer, modelCache);
-					} catch (ex: Exception) {
-						logger.error("Model property \"${it.name}\" on class \"$className\" could not be set during model registration");
-						ex.printStackTrace();
-						return@forEach;
-					}
+					// Initialize the LazyModel with our cache
+					lazyModel.initialize(modelCache);
 					
 					// Register the model
-					logger.info("Registering model \"${modelLocationAnnotation.resourceLocation}\" for class \"$className\"...");
+					logger.info("Registering model \"${lazyModel.modelPath}\" for class \"$className\"...");
 					ForgeModelLoader.addSpecialModel(resourceLocation);
 					
 					// Record this model for later reloading
-					consumerInfo.registeredModels += modelCache;
+					consumerInfo.registeredModels += lazyModel;
 				};
 			
 			logger.info("Registered ${consumerInfo.registeredModels.size} models for class \"$className\"");

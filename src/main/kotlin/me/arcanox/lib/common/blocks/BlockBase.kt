@@ -10,16 +10,7 @@ import net.minecraft.world.IBlockReader
 import net.minecraft.world.World
 import net.minecraft.world.chunk.Chunk
 
-abstract class BlockBase(name: String, properties: Properties) : Block(properties) {
-	var apiName: String
-		private set
-	
-	init {
-		this.apiName = name;
-		
-		this.setRegistryName(name);
-	}
-	
+abstract class BlockBase(properties: Properties) : Block(properties) {
 	fun getTileEntitySafe(world: IBlockReader, pos: BlockPos, state: BlockState): TileEntity? {
 		if (!this.hasTileEntity(state)) {
 			Logger.error("Cannot get TileEntity for block ${this.registryName} because it does not have one")

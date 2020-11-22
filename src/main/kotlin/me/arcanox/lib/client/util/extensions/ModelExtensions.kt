@@ -2,7 +2,7 @@ package me.arcanox.lib.client.util.extensions
 
 import com.mojang.blaze3d.matrix.MatrixStack
 import com.mojang.blaze3d.vertex.IVertexBuilder
-import me.arcanox.lib.util.LazyCache
+import me.arcanox.lib.client.util.render.LazyModel
 import net.minecraft.block.BlockState
 import net.minecraft.client.renderer.model.IBakedModel
 import net.minecraftforge.client.model.data.EmptyModelData
@@ -26,10 +26,10 @@ fun IBakedModel.renderSimple(vertexBuilder: IVertexBuilder,
 /**
  * Renders this IBakedModel using the provided parameters with basic lighting and color
  */
-fun LazyCache<IBakedModel>.renderSimple(vertexBuilder: IVertexBuilder,
-                                        matrixStack: MatrixStack,
-                                        blockState: BlockState,
-                                        random: Random,
-                                        combinedLight: Int,
-                                        combinedOverlay: Int) =
-	this.value.renderSimple(vertexBuilder, matrixStack, blockState, random, combinedLight, combinedOverlay);
+fun LazyModel.renderSimple(vertexBuilder: IVertexBuilder,
+                           matrixStack: MatrixStack,
+                           blockState: BlockState,
+                           random: Random,
+                           combinedLight: Int,
+                           combinedOverlay: Int) =
+	this.get().renderSimple(vertexBuilder, matrixStack, blockState, random, combinedLight, combinedOverlay);
