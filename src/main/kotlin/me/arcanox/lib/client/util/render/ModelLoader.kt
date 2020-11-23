@@ -79,24 +79,14 @@ object ModelLoader {
 		logger.info("Scanning \"$packagePrefix\" for model consumers...")
 		ReflectionHelper.forClassesWithAnnotation(ConsumesModels::class, Any::class, packagePrefix) { modelConsumerClass, _ ->
 			val className = modelConsumerClass.simpleName;
-			
 			// Try and figure out what we're setting model properties on (either an object instance or a companion object instance)
-			val modelConsumer = if (modelConsumerClass.objectInstance != null) {
-				modelConsumerClass.objectInstance!!;
-			} else {
-				val companionObject = modelConsumerClass.companionObjectInstance;
-				
-				if (companionObject == null) {
-					logger.warn("Class \"$className\" has a ConsumesModels annotation, but it is not an object and does not have a companion object");
-					return@forClassesWithAnnotation;
-				}
-				
-				modelConsumerClass.companionObjectInstance!!;
-			}
-			
+			val modelConsumer = modelConsumerClass.objectInstance ?: modelConsumerClass.companionObjectInstance ?: run {
+				logger.warn("Class \"$className\" has a ConsumesModels annotation, but it is not an object and does not have a companion object");
+				return@forClassesWithAnnotation;
+			};
 			val consumerInfo = RegisteredModelConsumer(modelConsumerClass);
 			
-			// Find all declared properties on the IModelConsumer's class that are of type LazyCache<*> and that have a ModelLocation annotation
+			// Find all declared properties on the IModelConsumer's class that are of type LazyModel so we can initialize their caches
 			modelConsumer::class.declaredMemberProperties
 				.filter { it.returnType.classifier == LazyModel::class }
 				.forEach {
@@ -122,9 +112,10 @@ object ModelLoader {
 			
 			logger.info("Registered ${consumerInfo.registeredModels.size} models for class \"$className\"");
 			
+			// Keep track of the consumer for later reloading
 			modelConsumers += consumerInfo;
 			
-			// Listen for reloads
+			// Actually listen for reloads
 			reloadableResourceManager?.addReloadListener(consumerInfo);
 		};
 		
