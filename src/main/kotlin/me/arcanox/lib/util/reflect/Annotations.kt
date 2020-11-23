@@ -1,7 +1,6 @@
 package me.arcanox.lib.util.reflect
 
-import net.minecraft.block.Block
-import net.minecraft.client.renderer.tileentity.TileEntityRenderer
+import net.minecraft.tileentity.TileEntity
 import kotlin.reflect.KClass
 
 // region Initialization
@@ -20,6 +19,6 @@ annotation class ClientInitHandler(val priority: Int = 5)
 annotation class ModTileEntity(val id: String, vararg val validBlocks: String)
 
 @Target(AnnotationTarget.CLASS)
-annotation class HasTileEntityRenderer(val rendererClass: KClass<out TileEntityRenderer<*>>)
+annotation class TileEntityRendererFor(vararg val tileEntityClasses: KClass<out TileEntity>)
 
 // endregion
